@@ -1,6 +1,6 @@
 {
-  "name": "typologist",
-  "version": "0.1.0",
+  "name": "@foldedwave/typologist",
+  "version": "0.1.1",
   "description": "Type-safe path-based property access for TypeScript",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,7 +19,7 @@
     "type-safety",
     "object-paths"
   ],
-  "author": "",
+  "author": "Foldedwave",
   "license": "MIT",
   "devDependencies": {
     "@jest/globals": "^29.7.0",
@@ -41,5 +41,8 @@
   "bugs": {
     "url": "https://github.com/foldedwave/typologist/issues"
   },
-  "homepage": "https://github.com/foldedwave/typologist#readme"
+  "homepage": "https://github.com/foldedwave/typologist#readme",
+  "directories": {
+    "test": "test"
+  }
 }

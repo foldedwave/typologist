@@ -6,6 +6,20 @@
  */
 
 /**
+ * Maximum recursion depth for nested paths to prevent TypeScript from exceeding its recursion limit.
+ */
+type MaxTypeAtDepth = 5;
+
+/**
+ * Helper type to decrease the depth counter using tuple indexing.
+ * Using a tuple provides a type-safe way to subtract 1 from a number type.
+ * 
+ * @template D - The current depth number
+ * @returns The depth minus 1
+ */
+type DecreaseDepth<D extends number> = [-1, 0, 1, 2, 3, 4, 5][D];
+
+/**
  * Internal utility to handle optional and nullable types by converting them to their non-optional,
  * non-null equivalents. Preserves array types as-is.
  */
@@ -96,26 +110,26 @@ T extends any[]
  * Internal utility to resolve array access patterns and provide the correct type.
  * Handles array indexing and nested property access after array indexing.
  */
-type ArrayType<T, K> =
-T extends any[]
-  ? K extends `[${number}]${infer Rest}`
-    ? Rest extends ''
-      ? Normalize<Merged<ArrayElementType<T>>>
-      : Rest extends `.${infer NestedRest}`
-        ? TypeAt<Normalize<Merged<ArrayElementType<T>>>, NestedRest>
-        : TypeAt<Normalize<Merged<ArrayElementType<T>>>, Rest>
-    : never
-  : K extends `${infer Base}[${number}]${infer Rest}`
-    ? Base extends keyof T
-      ? NonNullable<T[Base]> extends any[]
-        ? Rest extends ''
-          ? Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>
-          : Rest extends `.${infer NestedRest}`
-            ? TypeAt<Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>, NestedRest>
-            : TypeAt<Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>, Rest>
-        : never
+type ArrayType<T, K, D extends number> =
+  T extends any[]
+    ? K extends `[${number}]${infer Rest}`
+      ? Rest extends ''
+        ? Normalize<Merged<ArrayElementType<T>>>
+        : Rest extends `.${infer NestedRest}`
+          ? TypeAt<Normalize<Merged<ArrayElementType<T>>>, NestedRest, DecreaseDepth<D>>
+          : TypeAt<Normalize<Merged<ArrayElementType<T>>>, Rest, DecreaseDepth<D>>
       : never
-    : never;
+    : K extends `${infer Base}[${number}]${infer Rest}`
+      ? Base extends keyof T
+        ? NonNullable<T[Base]> extends any[]
+          ? Rest extends ''
+            ? Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>
+            : Rest extends `.${infer NestedRest}`
+              ? TypeAt<Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>, NestedRest, DecreaseDepth<D>>
+              : TypeAt<Normalize<Merged<ArrayElementType<NonNullable<T[Base]>>>>, Rest, DecreaseDepth<D>>
+          : never
+        : never
+      : never;
 
 /**
  * Internal check for dictionary key access. Identifies paths accessing string index
@@ -132,13 +146,14 @@ type IsDictionaryKey<T, K extends string | number> = T extends { [key: string]: 
 /**
  * Internal utility to get types from string index signatures, excluding nested paths.
  */
-type DictionaryKeyType<T, K extends string | number> = T extends { [key: string]: any }
-  ? string extends keyof T
-    ? K extends `${string}.${string}`
-      ? never
-      : T[keyof T]
-    : never
-  :never;
+type DictionaryKeyType<T, K extends string | number, _D extends number> = 
+  T extends { [key: string]: any }
+    ? string extends keyof T
+      ? K extends `${string}.${string}`
+        ? never
+        : T[keyof T]
+      : never
+    : never;
 
 /**
  * Internal check for nested property access through dot notation.
@@ -157,16 +172,16 @@ K extends `${infer I}.${string}`
 /**
  * Internal utility to resolve nested property access patterns.
  */
-type NestedKeyType<T, K> =
-K extends `${infer I}.${infer Rest}`
-  ? IsExplicitKey<T, I> extends true
-    ? I extends keyof T
-      ? T[I] extends object
-        ? TypeAt<Normalize<Merged<T[I]>>, Rest>
+type NestedKeyType<T, K, D extends number> =
+  K extends `${infer I}.${infer Rest}`
+    ? IsExplicitKey<T, I> extends true
+      ? I extends keyof T
+        ? T[I] extends object
+          ? TypeAt<Normalize<Merged<T[I]>>, Rest, DecreaseDepth<D>>
+          : never
         : never
       : never
-    : never
-  : never;
+    : never;
 
 /**
  * Internal check for paths through optional properties.
@@ -189,18 +204,18 @@ K extends `${infer I}.${string}`
 /**
  * Internal utility to resolve types through optional property chains.
  */
-type OptionalKeyType<T, K extends string | number> =
-K extends `${infer I}.${infer Rest}`
-  ? I extends keyof T
-    ? undefined extends T[I]
-      ? TypeAt<Exclude<T[I], undefined>, Rest>
+type OptionalKeyType<T, K extends string | number, D extends number> =
+  K extends `${infer I}.${infer Rest}`
+    ? I extends keyof T
+      ? undefined extends T[I]
+        ? TypeAt<Exclude<T[I], undefined>, Rest, DecreaseDepth<D>>
+        : never
       : never
-    : never
-  : K extends keyof T
-    ? undefined extends T[K]
-      ? Exclude<T[K], undefined>
-      : never
-    : never;
+    : K extends keyof T
+      ? undefined extends T[K]
+        ? Exclude<T[K], undefined>
+        : never
+      : never;
 
 /**
  * Gets the type at a specific path in an object type.
@@ -224,37 +239,39 @@ K extends `${infer I}.${infer Rest}`
  * type T2 = TypeAt<User, "profile.addresses[0].street"> // string
  * type T3 = TypeAt<User, "settings.theme"> // "light" | "dark"
  */
-export type TypeAt<T, K extends string | number> =
-  IsExplicitKey<T, K> extends never
-  ? IsIndexKey<T, K> extends never
-    ? IsNestedKey<T, K> extends never
-      ? IsArray<T, K> extends never
-        ? IsDictionaryKey<T, K> extends never
-          ? IsOptionalKey<T, K> extends never
-            ? never
-            : OptionalKeyType<T, K>
-          : DictionaryKeyType<T, K>
-        : ArrayType<T, K>
-      : NestedKeyType<T, K>
-    : IndexKeyType<T, K>
-  : KeyType<T, K>;
+export type TypeAt<T, K extends string | number, D extends number = MaxTypeAtDepth> = 
+  D extends 0 
+    ? never 
+    : IsExplicitKey<T, K> extends never
+      ? IsIndexKey<T, K> extends never
+        ? IsNestedKey<T, K> extends never
+          ? IsArray<T, K> extends never
+            ? IsDictionaryKey<T, K> extends never
+              ? IsOptionalKey<T, K> extends never
+                ? never
+                : OptionalKeyType<T, K, DecreaseDepth<D>>
+              : DictionaryKeyType<T, K, DecreaseDepth<D>>
+            : ArrayType<T, K, DecreaseDepth<D>>
+          : NestedKeyType<T, K, DecreaseDepth<D>>
+        : IndexKeyType<T, K>
+      : KeyType<T, K>;
 
-/**
- * Utility type for debugging TypeAt results. Shows the intermediate steps of type resolution.
- */
-//@ts-ignore
-type DebugTypeAt<T, K extends string | number> = {
-  __key: K;
-  __isKey: IsExplicitKey<T, K>;
-  __keyType: KeyType<T, K>;
-  __isIndexKey: IsIndexKey<T, K>;
-  __indexKeyType: IndexKeyType<T, K>;
-  __isNestedKey: IsNestedKey<T, K>;
-  __nestedKeyType: NestedKeyType<T, K>;
-  __isArray: IsArray<T, K>;
-  __arrayType: ArrayType<T, K>;
-  __isDictionary: IsDictionaryKey<T, K>;
-  __dictionaryType: DictionaryKeyType<T, K>;
-  __isOptional: IsOptionalKey<T, K>;
-  __optionalType: OptionalKeyType<T, K>;
-};
+// /**
+//  * Utility type for debugging TypeAt results. Shows the intermediate steps of type resolution.
+//  */
+// //@ts-ignore
+// type DebugTypeAt<T, K extends string | number> = {
+//   __key: K;
+//   __isKey: IsExplicitKey<T, K>;
+//   __keyType: KeyType<T, K>;
+//   __isIndexKey: IsIndexKey<T, K>;
+//   __indexKeyType: IndexKeyType<T, K>;
+//   __isNestedKey: IsNestedKey<T, K>;
+//   __nestedKeyType: NestedKeyType<T, K>;
+//   __isArray: IsArray<T, K>;
+//   __arrayType: ArrayType<T, K>;
+//   __isDictionary: IsDictionaryKey<T, K>;
+//   __dictionaryType: DictionaryKeyType<T, K>;
+//   __isOptional: IsOptionalKey<T, K>;
+//   __optionalType: OptionalKeyType<T, K>;
+// };
