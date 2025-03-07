@@ -92,26 +92,36 @@ type GetArrayElementPaths<U, D extends number> =
  */
 export type Paths<T, Depth extends number = MaxDepth> = Depth extends 0 
   ? never 
-  : T extends object
-    ? IsTerminal<T> extends true
-      ? never
-      : {
-          [K in keyof T]-?: K extends string
-            ? T[K] extends (infer ArrayElement)[] | undefined
-              ? K 
-                | `${K}${GetArrayPathSegments<T[K]>}` 
-                | `${K}${GetArrayElementPaths<ArrayElement, Depth>}`
-              : T[K] extends Record<string, infer V>
-                ? string extends keyof T[K]
-                  ? V extends object
-                    ? K | `${K}.${string}` | `${K}.${string}.${Paths<V, DecreaseDepth<Depth>>}`
-                    : K | `${K}.${string}` 
-                  : K | `${K}.${Paths<T[K], DecreaseDepth<Depth>>}`
-              : T[K] extends object | undefined
-                ? K | `${K}.${Paths<Exclude<T[K], undefined>, DecreaseDepth<Depth>> & string}`
-                : K
-            : K extends number 
-              ? `${K}`
-              : never;
-        }[keyof T]
-    : never;
+  : T extends (infer E)[] // Handle root-level array case
+    ? `[${number}]` | (
+        E extends any[] // Special case for nested arrays
+          ? `[${number}]${Paths<E, DecreaseDepth<Depth>> & string}`
+          : E extends object
+            ? IsTerminal<E> extends true
+              ? never
+              : `[${number}].${Paths<E, DecreaseDepth<Depth>> & string}`
+            : never
+      )
+    : T extends object
+      ? IsTerminal<T> extends true
+        ? never
+        : {
+            [K in keyof T]-?: K extends string
+              ? T[K] extends (infer ArrayElement)[] | undefined
+                ? K 
+                  | `${K}${GetArrayPathSegments<T[K]>}` 
+                  | `${K}${GetArrayElementPaths<ArrayElement, DecreaseDepth<Depth>>}`
+                : T[K] extends Record<string, infer V>
+                  ? string extends keyof T[K]
+                    ? V extends object
+                      ? K | `${K}.${string}` | `${K}.${string}.${Paths<V, DecreaseDepth<Depth>>}`
+                      : K | `${K}.${string}` 
+                    : K | `${K}.${Paths<T[K], DecreaseDepth<Depth>>}`
+                : T[K] extends object | undefined
+                  ? K | `${K}.${Paths<Exclude<T[K], undefined>, DecreaseDepth<Depth>> & string}`
+                  : K
+              : K extends number 
+                ? `${K}`
+                : never;
+          }[keyof T]
+      : never;

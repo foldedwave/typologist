@@ -230,4 +230,88 @@ describe('TypeAt', () => {
       expectType<TypeEqual<CreatedAtType, Date>>(true);
     });
   });
+
+  describe('TypeAt with complex array edge cases', () => {
+    // Define some test types
+    type Item = {
+      id: number;
+      name: string;
+      optional?: string;
+      nested: {
+        value: boolean;
+      };
+    };
+  
+    // Edge case 1: Array of unions
+    type UnionArray = (Item | { code: string })[];
+  
+    // Edge case 2: Optional array
+    type OptionalArray = Item[] | undefined;
+  
+    // Edge case 3: Array with optional elements
+    type ArrayWithOptionalElements = (Item | undefined)[];
+  
+    // Edge case 4: Deeply nested array paths
+    type DeepArray = {
+      level1: {
+        level2: {
+          items: Item[]
+        }
+      }
+    }[];
+  
+    // Edge case 5: Array with index signatures
+    type DictionaryInArray = { [key: string]: number }[];
+  
+    it('should handle arrays of union types', () => {
+      type Result1 = TypeAt<UnionArray, '[0].id'>;
+      type Result2 = TypeAt<UnionArray, '[0].code'>;
+    
+      // Should extract common fields from union
+      expectType<TypeEqual<Result1, number>>(true);
+      expectType<TypeEqual<Result2, string>>(true);
+    });
+  
+    it('should handle optional arrays', () => {
+      type Result = TypeAt<OptionalArray, '[0].name'>;
+    
+      // Should resolve to the type without the undefined part
+      expectType<TypeEqual<Result, string>>(true);
+    });
+  
+    it('should handle arrays with optional elements', () => {
+      type Result = TypeAt<ArrayWithOptionalElements, '[0].name'>;
+    
+      // Should handle that the element might be undefined
+      expectType<TypeEqual<Result, string>>(true);
+    });
+  
+    it('should handle deeply nested array paths', () => {
+      type Result1 = TypeAt<DeepArray, '[0].level1.level2.items[0].name'>;
+      type Result2 = TypeAt<DeepArray, '[0].level1.level2.items[0].nested.value'>;
+    
+      // Should correctly navigate deep paths
+      expectType<TypeEqual<Result1, string>>(true);
+      expectType<TypeEqual<Result2, boolean>>(true);
+    });
+  
+    it('should handle dictionary types in arrays', () => {
+      type Result = TypeAt<DictionaryInArray, '[0].someKey'>;
+    
+      // Should handle index signature access
+      expectType<TypeEqual<Result, number>>(true);
+    });
+  
+    it('should handle numeric indices in complex nested structures', () => {
+      // This is a particularly tricky case
+      type ComplexType = {
+        items: (string | number)[][];
+      }[];
+    
+      type Result = TypeAt<ComplexType, '[0].items[1][2]'>;
+    
+      // Should correctly resolve nested array indices
+      expectType<TypeEqual<Result, string | number>>(true);
+    });
+  });
 });
